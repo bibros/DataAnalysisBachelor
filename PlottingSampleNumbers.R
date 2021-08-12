@@ -1,5 +1,3 @@
-setwd("~/Uni/6) Bachelorarbeit/6 Data")
-
 install.packages("hrbrthemes")
 install.packages("viridis")
 install.packages("packcircles")
@@ -20,31 +18,16 @@ require(pals)
 require(readxl)
 library(scales)
 
+# set working directory
+sampleFolder <- selectDirectory(
+  caption = "Select folder for working directory", label = "Select",
+  path = getwd()
+)
+setwd(sampleFolder)
+
+# read in file with overview of tumor sample numbers
 data1 <- read_excel("summary.xlsx") %>% select(c(Tumor, count))
 head(data1)
-
-
-############ Pie chart ###############################################################################
-
-data1 <- as.data.frame(data1)
-
-data <-
-  arrange(data1, desc(Tumor)) %>%
-  mutate(percent = count / sum(data1$count) *100) %>%
-  mutate(ypos = (cumsum(percent) - 0.5*percent))
-
-ggplot(data, aes(x = "", y = percent, fill = Tumor)) +
-  geom_bar(width = 1, stat = "identity", color = "black") +
-  coord_polar("y", start = 0)+
-  geom_text(aes(y = ypos, label = Tumor), color = "black", size = 5)+
-  theme_void()
-
-ggplot(data, aes(x = 2, y = percent, fill = Tumor)) +
-  geom_bar(stat = "identity", color = "white") +
-  coord_polar(theta = "y", start = 0)+
-  geom_text(aes(y = ypos, label = Tumor), color = "black", size = 5)+
-  theme_void()+
-  xlim(0.75, 2.5)
 
 
 ############ Bar plot ################################################################################
@@ -72,9 +55,9 @@ ggsave(plot = last_plot(), paste("Tumor_Entities_bar_", format(Sys.time(), "%Y-%
 
 
 
-
 ############ Bubble plot #############################################################################
 
+# source: https://www.r-graph-gallery.com/305-basic-circle-packing-with-one-level.html
 
 # Generate the layout. This function return a dataframe with one line per bubble. 
 # It gives its center (x and y) and its radius, proportional of the value
@@ -132,9 +115,31 @@ display.brewer.all()
 
 
 
+############ Leftovers ######################################################################################
+
+# Pie chart
+data1 <- as.data.frame(data1)
+
+data <-
+  arrange(data1, desc(Tumor)) %>%
+  mutate(percent = count / sum(data1$count) *100) %>%
+  mutate(ypos = (cumsum(percent) - 0.5*percent))
+
+ggplot(data, aes(x = "", y = percent, fill = Tumor)) +
+  geom_bar(width = 1, stat = "identity", color = "black") +
+  coord_polar("y", start = 0)+
+  geom_text(aes(y = ypos, label = Tumor), color = "black", size = 5)+
+  theme_void()
+
+ggplot(data, aes(x = 2, y = percent, fill = Tumor)) +
+  geom_bar(stat = "identity", color = "white") +
+  coord_polar(theta = "y", start = 0)+
+  geom_text(aes(y = ypos, label = Tumor), color = "black", size = 5)+
+  theme_void()+
+  xlim(0.75, 2.5)
 
 
-
+# Bubble plot
 # my own tries with given x/y values (which were by the way the same as the function above created...)
 
 # Most basic bubble plot
