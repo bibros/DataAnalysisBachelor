@@ -12,11 +12,23 @@ library(dplyr)
 library(hrbrthemes)
 library(viridis)
 library(packcircles)
-library(RColorBrewer)
 library(ggsci)
 require(pals)
 require(readxl)
 library(scales)
+
+pkgs <- c("remedy", "dplyr", "rstudioapi", "cowplot", "gplots", "ggplot2", "styler",
+          "stringr", "RColorBrewer", "readxl", "devtools", "tidyverse", "scales",
+          "useful", "renv", "patchwork")
+
+for(i in 1:length(pkgs)){
+  if(!require(pkgs[i], character.only = T)){
+    install.packages(pkgs[i])
+    require(pkgs[i], character.only = T)
+  }else{
+    require(pkgs[i], character.only = T)
+  }
+}
 
 # set working directory
 sampleFolder <- selectDirectory(
@@ -26,13 +38,14 @@ sampleFolder <- selectDirectory(
 setwd(sampleFolder)
 
 # read in file with overview of tumor sample numbers
-data1 <- read_excel("summary.xlsx") %>% select(c(Tumor, count))
+data1 <- read_excel("ALI_organoid_EntityConfirmation.xlsx", sheet = "Overview") %>% select(c(Tumor, Count))
 head(data1)
+
 
 
 ############ Bar plot ################################################################################
 
-ggplot(data1, aes(x = reorder(Tumor, -count), y = count, fill = Tumor)) +
+ggplot(data1, aes(x = reorder(Tumor, -Count), y = Count, fill = Tumor)) +
   geom_bar(stat = "Identity", color = "black") +
   theme(panel.background = element_rect(fill = "white"),
         axis.line = element_line(color = "black"),
@@ -52,7 +65,6 @@ ggsave(plot = last_plot(), paste("Tumor_Entities_bar_", format(Sys.time(), "%Y-%
        width = 21, height = 29, units = "cm",
        bg = "transparent")
   
-
 
 
 ############ Bubble plot #############################################################################

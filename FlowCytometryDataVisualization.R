@@ -99,31 +99,29 @@ percentages <- data.frame(Population = rep(gs_pop_get_count_fast(gs[stained])$Po
                           Count = rep(gs_pop_get_count_fast(gs[stained])$Count),
                           Parent = rep(gs_pop_get_count_fast(gs[stained])$ParentCount),
                           Percent = (rep(gs_pop_get_count_fast(gs[stained])$Count))/(rep(gs_pop_get_count_fast(gs[stained])$ParentCount))*100)
-#head(percentages)
 
 # get names of gated populations
 pop <- gs_pop_get_count_fast(gs[stained])$Population
 pop1 <- str_extract_all(pop, "[^/](.*?)+[^/]+", simplify = TRUE)
 pop1[pop1 == ""] <- NA
-#View(pop1)
 lastValue <- function(pop1)   tail(pop1[!is.na(pop1)], 1)
-
 
 # safe gated populations as new variable and adjust names
 newGates <- apply(pop1, 1, lastValue)
 
+# rename some gates
 newGates[19] = "Other 2"
 newGates[26] = "Other 3"
 newGates[33] = "Tc ctotoxic/exhausted"
 newGates[34] = "Tc inflammatory"
 newGates[37] = "T conv ctotoxic/exhausted"
 newGates[38] = "T conv inflammatory"
-#View(newGates)
+View(newGates)
 
 percentages["Population"] <- newGates
 percentages["PercTotal"] <- percentages$Count/percentages[3,2]*100   # % cells of live cells
 
-plot <- percentages[4:39,]
+plot <- percentages[4:39,] # excludes gates (cells, single cells, tumor cells) for plotting
 
 
 
@@ -131,15 +129,15 @@ plot <- percentages[4:39,]
 
 plot$Population <- factor(plot$Population, levels = plot$Population)
 
+# creating bar plot with percentages of live cells for each gate
 ggplot() +
   geom_col(data = plot, width = .2, aes(x = Population, y = PercTotal),
            color = "black") +
-  
   ylab("Cell count (% of live cells)") +
   xlab("Cell types") +
   theme_classic() +
   
-  ggtitle("TILs") +
+  ggtitle("Tumor infiltrating immune cells") +
   
   theme(panel.background = element_rect(fill = "white"),
         axis.line = element_line(color = "black"),
@@ -152,26 +150,32 @@ ggsave(plot = last_plot(), paste(GraphName, " Immune", ".png", sep = ""),
        bg = "transparent")
        # for date: paste(GraphName, format(Sys.time(), " %d-%m-%Y")
 
-excelExport <- pop1
-excelExport <- cbind(excelExport, percentages[,2:5])
-
+# saves gate names, counts and percentages as a .csv file
+excelExport <- cbind(pop1, percentages[,2:5])
 write_excel_csv(excelExport,
                 file = paste(GraphName, " Immune", ".csv", sep = ""))
 
 
 
-
 ############### 1b Summarize data ###########################################################################
 
-# get all exported csv files from the immune panels
-setwd("c:/Users/Bianca/Documents/Uni/6) Bachelorarbeit/6 Data/Flow Jo Analysis/Panel Stainings_Tumor_Immune/")
-folder <- "_Export/Immune/"      # path to folder that holds the .csv files
+# select the input folder which holds the workspace and the samples and their csv files which were exported above
+sampleFolder <- selectDirectory(
+  caption = "Select folder for working directory", label = "Select",
+  path = getwd()
+)
+setwd(sampleFolder)
+
+folder <- "_Export/Immune/"      # path to subfolder that holds the .csv files
 file_list <- list.files(path = folder, pattern = "*.csv") # create list of all .csv files in folder
 View(file_list)
 
 #file_list <- file_list[c(11,12)]  # choose specific files
 
+# get gate names from a separatly saved file, could also be read from one of die imported csv files
 GateNames <- read_csv("_Export/GateNames_Immune2.csv")
+GateNames[30,] = "Cytotoxic\nT cells"
+GateNames[32,] = "Conventional\ncytotoxic T cells"
 View(GateNames)
 samples <- GateNames
 
@@ -187,8 +191,7 @@ for (i in 1:length(file_list)){
          samples <- cbind(samples, sampleFile[13])
          samples <- samples %>% rename_at(1, ~"Population")
 }
-#View(samples)
-
+View(samples)
 
 # selection of specific populations for plotting
 SumPop1 <- samples[c(4,5,40),] # tumor/ fibro/ immune
@@ -197,14 +200,14 @@ SumPop1 <- samples[c(4,5,40),] # tumor/ fibro/ immune
 SumPop1 <- samples[c(6,9,15,25,30,35),]
         selection <- "MajorClasses" # immune major cell classes
         height <- 15
-SumPop1 <- samples[c(10,11,16:18,24,31,32,36,39),] # minor immune cell classes
+SumPop1 <- samples[c(10,11,16:18,32,36,39),] # minor immune cell classes
         selection <- "MinorClasses"
         height <- 15
 #-------------- 
 SumPop1 <- samples[c(4,6,10:13,16:18,21,22,24,25,28,31,33,34,36,38:40),] # All end gates
         selection <- "AllEndPops"
         height <- 18
-SumPop1 <- samples[c(4:40),]
+SumPop1 <- samples[c(4:40),] # all gates, excluding cells, single cells, live cells
         selection <- "AllGates"
         height <- 25
 
@@ -249,7 +252,7 @@ new <- SumPop2 %>%      # get sample numbers
   summarise(no_samples = n_distinct(TumorID))
 SumPop3 <- cbind(SumPop3, new[,2])
 
-
+#
 
 #-------------- Plot entity means, One graph -------------------------------------------
 
@@ -292,7 +295,9 @@ ggsave(plot = last_plot(), path = "_Export", paste("EntityMeans_MultipleGraphs_I
        bg = "transparent")
 
 ##
-
+# Data used for the graph can be exported as csv file
+write_excel_csv(samples,
+                file = paste("Experiment-Name", ".csv", sep = ""))
 
 
 
@@ -316,14 +321,11 @@ colnames(files) = c("folder", "workspace")
 # read in each workspaces, calculate percentages and export png/excel file for each sample
 for (i in 1:length(file_list)){
   flowWorkspacePath <- file_list[i]
-  
   x <- list.dirs(paste0(files[i,1], "/Unmixed"), full.names = T)[-1]
   flowSamplePath <- x[!grepl("Reference Group" , x)]
   
-  GraphName <- str_sub(files[i, 2], 1, length(files[i, 2])-6)
-  
+  GraphName <- str_sub(files[i, 2], 1, 6) # length(files[i, 2])-6)
   stained <- 1
-  
   ws <- open_flowjo_xml(flowWorkspacePath)
   print(ws)
   
@@ -343,10 +345,11 @@ for (i in 1:length(file_list)){
   newGates <- apply(pop1, 1, lastValue)
   
   percentages["Population"] <- newGates
-  percentages["PercTotal"] <- c(percentages$Count[1:4]/percentages[1,2]*100,  # % cells of total cells
-                                percentages$Count[5:6]/percentages[4,2]*100)  # % of lymphocytes
+  percentages["PercTotal"] <- c(percentages$Count/percentages[2,2]*100)  # % cells of total cells
+                              #  percentages$Count[5:6]/percentages[4,2]*100)  # % of lymphocytes
   
   excelExport <- cbind(pop1, percentages[,2:5])
+  
   write_excel_csv(excelExport, file = paste("_Export_csvFiles/", GraphName,
                                             ".csv", sep = ""))
 }
@@ -354,10 +357,11 @@ for (i in 1:length(file_list)){
 
 folder <- "_Export_csvFiles/"      # path to folder that holds the .csv files
 file_list <- list.files(path = folder, pattern = "*.csv") # create list of all .csv files in folder
-#View(file_list)
+View(file_list)
 
 GateNames <- read_csv("GateNames_Sytox.csv")
 samples <- GateNames
+
 samples <- samples %>% rename_at(1, ~"Population")
 
 samples[3,] = "Live total cells"
@@ -415,12 +419,26 @@ ggplot(data = SumPop3, width = .2, aes(x = Entity, y = MeanPerc, fill = Entity))
         axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
         legend.position = "none",
         text = element_text(size = 14)) +
+  scale_fill_manual(values = c("#F33C6C", "#EA830E", "#BED228", "#9CA739", "#6EB043",
+                               "#2BB45F", "#2FA18B", "#1AABC3", "#26C3E9", "#4A9FE2",
+                               "#A283BC", "#D16FAC", "#F0B097")) +
   labs(y = "Live cells \n [% of total cells]", x = "Entities") +
   geom_point(data = SumPop2, aes(x = Entity, y = PercOfTotal), size = 1.2, 
              color = "black", position=position_dodge(.9)) +  # Punkte mit Einzelwerten
   geom_errorbar(data = SumPop3, aes(x = Entity, ymin = sd_mean$mean-sd_mean$sd, ymax = sd_mean$mean+sd_mean$sd),
                 width = 0.4, colour = "black", alpha = 0.9, size = 1)
   #title = "Live cells in tumors", 
+
+ggplot(data = SumPop, width = .2, aes(x = TumorID, y = PercOfTotal, fill = TumorID)) +
+  geom_col(position = position_dodge2(preserve = "single"),
+           color = "black") +
+  theme(panel.background = element_rect(fill = "white"),
+        axis.line = element_line(color = "black"),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        legend.position = "none",
+        text = element_text(size = 12)) +
+  labs(title = "Meningioma Live SYTOX",
+       y = "Live cells \n [% of single cells]", x = "Tumor Samples")
 
 title <- dlgInput("Enter the name of your graph for the export")$res
 
@@ -440,7 +458,7 @@ sampleFolder <- selectDirectory(
 )
 setwd(sampleFolder)
 
-folderTumor <- "Panel Stainings_Tumor/_Export/Immune/"      # path to folder that holds the .csv files
+folderTumor <- "Panel Stainings_Tumor_Immune/_Export/Immune/"      # path to folder that holds the .csv files
 folderOrganoid <- "Panel Stainings_Organoids/_Export/"      # path to folder that holds the .csv files
 file_listTumor <- list.files(path = folderTumor, pattern = "*.csv") # create list of all .csv files in folder
 file_listOrgan <- list.files(path = folderOrganoid, pattern = "*.csv") # create list of all .csv files in folder
@@ -461,7 +479,7 @@ for (i in 1:length(file_listOrgan)){
     fileTumor <- read.csv(paste(folderTumor, file_listTumor[which(tumor == organoid[i])], sep=''))
     fileOrgan <- read.csv(paste(folderOrganoid, file_listOrgan[i], sep=''))
     
-    samples <- read_csv("Panel Stainings_Tumor/_Export/GateNames_Immune.csv")
+    samples <- read_csv("Panel Stainings_Tumor_Immune/_Export/GateNames_Immune.csv")
     samples <- cbind(samples, fileTumor[10], fileOrgan[10])
     names(samples)[1:3] <- c("Population", "TumorCount", "OrganoidsCount")
     samples["Tumor"] <- samples$Tumor/samples[5,2]*100   # % cells of immune cells
@@ -513,16 +531,11 @@ for (i in 1:length(file_listOrgan)){
 ############### 4 Comparisons of immune panels / experiments ################################################
 
 # get input directory
-sampleFolder <- selectDirectory(
-  caption = "Select folder for working directory", label = "Select",
-  path = getwd()
-)
-setwd(sampleFolder)
-
 folder <- selectDirectory(
   caption = "select folder with sample data", label = "select",
   path = getwd()
 )
+setwd(folder)
 
 fileList <- list.files(path = folder, recursive = T, pattern = "*.csv")
 View(fileList)
@@ -544,39 +557,51 @@ file6 <- read.csv(paste0(folder, "/", fileList[6]))
 file7 <- read.csv(paste0(folder, "/", fileList[7]))
 file8 <- read.csv(paste0(folder, "/", fileList[8]))
 
-GateNames <- read_csv("Panel Stainings_Tumor/_Export/GateNames_Immune2.csv")
+GateNames <- read_csv("C:/Users/Bianca/Documents/Uni/6) Bachelorarbeit/6 Data/Flow Jo Analysis/Panel Stainings_Tumor_Immune/_Export/GateNames_Immune.csv")
+#View(GateNames)
 
-samples <- cbind(GateNames, file1[10], file2[10])#, file3[10], file4[10], file5[10], file6[10], file7[10], file8[10])
+samples <- cbind(GateNames, file1[10], file2[10])#, file5[10], file6[10], file7[10], file8[10])#, file7[10], file8[10])
 names(samples) <- c("Population", sample[1:2])
-samples[colnames(samples[2])] <- samples[,2]/samples[5,2]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[3])] <- samples[,3]/samples[5,3]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[4])] <- samples[,4]/samples[2,4]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[5])] <- samples[,5]/samples[2,5]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[6])] <- samples[,6]/samples[2,6]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[7])] <- samples[,7]/samples[2,7]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[8])] <- samples[,8]/samples[2,8]*100   # % cells of 5 immune cells / 3 live cells
-samples[colnames(samples[9])] <- samples[,9]/samples[2,9]*100   # % cells of 5 immune cells / 3 live cells
+names(samples) <- c("Population", "MEL_009_Base", "MEL_009_TILs", "RCC_025_Base", "RCC_025_TILs", "RCC_026_Base", "RCC_026_TILs")
+samples[colnames(samples[2])] <- samples[,2]/samples[3,2]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[3])] <- samples[,3]/samples[3,3]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[4])] <- samples[,4]/samples[5,4]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[5])] <- samples[,5]/samples[5,5]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[6])] <- samples[,6]/samples[5,6]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[7])] <- samples[,7]/samples[5,7]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[8])] <- samples[,8]/samples[3,8]*100   # % cells of 5 immune cells / 3 live cells
+samples[colnames(samples[9])] <- samples[,9]/samples[3,9]*100   # % cells of 5 immune cells / 3 live cells
 # last two/six rows overwrote the samples' counts with their percentages
 
-# 6,9,15,25,30,35,     6,9,15,25,30,35
-SumPop1 <- samples[c(6,10,11,15,20,24,25,30,35),]  # immune major cell classes
+# 6,9,15,25,30,35,     6,10,11,15,20,24,25,30,35
+SumPop1 <- samples[c(3),]                          # live cells
+SumPop1 <- samples[c(4,5,40),]                     # fibro, endo, immune, tumor
+SumPop1 <- samples[c(6,9,15,25,30,35),]  # immune major cell classes
 #colnames(SumPop1) <- c("Population", "Baseline", "TILs")
 SumPop <- as.data.table(SumPop1)
 SumPop <- melt(SumPop, id.vars = c("Population"), variable.name = "Sample", value.name = "PercOfImmune")
 
-#View(SumPop)
+View(SumAll)
+sum <- aggregate(SumPop$PercOfImmune, by=list(Category=SumPop$Sample), FUN=sum)
+table <- cbind("Other immune cells", rbind(100-sum$x))
+colnames(table) <- c("Population", "MEL_009_Base", "MEL_009_TILs", "RCC_025_Base", "RCC_025_TILs", "RCC_026_Base", "RCC_026_TILs")
+SumAll <- rbind(SumPop1, table)
+
+SumPop <- as.data.table(SumAll)
+SumPop <- melt(SumPop, id.vars = c("Population"), variable.name = "Sample", value.name = "PercOfImmune")
+
 # cols next to each other
 ggplot(data = SumPop, aes(x = Population, y = PercOfImmune, fill = Sample)) +
   geom_col(position = position_dodge(width = 0.85),
            color = "black", width = 0.65) +
   theme(panel.background = element_rect(fill = "white"),
         axis.line = element_line(color = "black"),
-        axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.x = element_text(angle = 0, hjust = 0.5),
         #legend.position = "none",
         #legend.text = element_text(size = 10),
         legend.key.size = unit(0.5, 'cm'),
         text = element_text(size = 12)) +
-  labs(title = "", y = "Cells [% of\nlive immune cells]", x = "Cell types")
+  labs(title = "", y = "Cells [% of live immune cells]", x = "Samples")
 
 ggsave(plot = last_plot(), path = folder, paste0(id, "_MajorImmuneClasses", "_TDK-vs-supernatant", ".png", sep = ""),
        width = 16, height = 8.5, units = "cm",
@@ -598,16 +623,19 @@ ggsave(plot = last_plot(), path = folder, paste0("major-immune-cells", "_Various
        bg = "transparent")
 
 
+write_excel_csv(SumPop1,
+                file = paste("CRC_006_filtered-vs-unfiltered_FEIT", ".csv", sep = ""))
+
 ##
 
-
+getwd()
 
 
 
 ############### Leftovers ######################################################################
 
-GateNames[4,] = "Fibroblasts or\nEndothelial cells"
-GateNames[8,] = "Classical\nmyeloid cells"
+GateNames[4,]  = "Fibroblasts or\nEndothelial cells"
+GateNames[8,]  = "Classical\nmyeloid cells"
 GateNames[13,] = "Non classical\nmyeloid cells"
 GateNames[16,] = "Cytotoxic\nNK cells"
 GateNames[17,] = "Pro-inflammatory\nNK cells"
@@ -624,8 +652,6 @@ GateNames[39,] = "Regulatory T\nhelper cells"
 #View(GateNames)
 write_excel_csv(GateNames,
                 file = paste("GateNames_Immune2", ".csv", sep = ""))
-
-
 
 Sumpop4 <- SumPop3
 SumPop4 <- arrange(transform(SumPop3,
@@ -670,8 +696,6 @@ percentages["PercTotal"] <- percentages$Count/percentages[3,2]*100   # % cells o
 
 plot <- percentages[4:20,]
 
-
-
 SumPop2 %>% 
   group_by(Entity) %>%
   summarise(no_samples = (length(Entity)/21))
@@ -681,6 +705,7 @@ SumPop2 %>%
   summarise(no_samples = length(Population))
 
 
+# ------------- Others -------------------------------------------------------------------------
 
 # for the Gate Names, read just the first .csv file from the folder of interest
 for (i in 1:length(file_list)){
@@ -718,12 +743,6 @@ GateNames <- apply(GateNames, 1, test)
 GateNames <- as.data.frame(GateNames)
 write_excel_csv( GateNames, file = paste("GateNames_Sytox",
                                          ".csv", sep = ""))
-
-
-
-
-
-
 
 map_df_read.csv <- function(path = "_Export/Immune/", pattern = ".csv") {
   sampleFile <- read.csv(., stringsAsFactors = FALSE, sep = ",")
